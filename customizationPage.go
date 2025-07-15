@@ -155,13 +155,13 @@ func (p *customizationPage) View() string {
 			cursor = lipgloss.NewStyle().Foreground(kairosAccent).Render(">")
 		}
 		tick := ""
-		if i == 0 {
+		if option == "User & Password" {
 			// User & Password
 			if p.isUserConfigured() {
 				tick = lipgloss.NewStyle().Foreground(kairosAccent).Render("✓")
 			}
 		}
-		if i == 1 {
+		if option == "SSH Keys" {
 			// SSH Keys
 			if p.isSSHConfigured() {
 				tick = lipgloss.NewStyle().Foreground(kairosAccent).Render("✓")
