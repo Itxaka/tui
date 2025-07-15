@@ -2,13 +2,15 @@ package main
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sanity-io/litter"
-	"strings"
 )
 
+// genericQuestionPage represents a page that asks a generic question
 type genericQuestionPage struct {
 	genericInput textinput.Model
 	section      YAMLPrompt
@@ -86,6 +88,7 @@ func newGenericQuestionPage(section YAMLPrompt) *genericQuestionPage {
 	}
 }
 
+// genericBoolPage represents a page that asks a generic yes/no question
 type genericBoolPage struct {
 	cursor  int
 	options []string

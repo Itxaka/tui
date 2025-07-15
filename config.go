@@ -1,8 +1,9 @@
 package main
 
 import (
-	"gopkg.in/yaml.v3"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
 // InstallConfig holds fixed and dynamic install fields
