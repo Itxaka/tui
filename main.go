@@ -814,8 +814,7 @@ func (p *sshKeysPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 					p.keyInput.Blur()
 					p.keyInput.SetValue("")
 					p.cursor = len(p.sshKeys) // Point to "Add new key" option
-					// Go back to customization page
-					return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
+					return p, textinput.Blink
 				}
 			}
 			p.keyInput, cmd = p.keyInput.Update(msg)
