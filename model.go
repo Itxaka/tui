@@ -182,7 +182,7 @@ func (m model) View() string {
 		Foreground(kairosHighlight).
 		Background(kairosBg).
 		Padding(1, 4).
-		Align(lipgloss.Center)
+		Align(lipgloss.Center).AlignHorizontal(lipgloss.Center)
 
 	// Get current page content by ID
 	content := ""
