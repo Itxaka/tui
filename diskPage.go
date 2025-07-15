@@ -75,7 +75,7 @@ func (p *diskSelectionPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 
 func (p *diskSelectionPage) View() string {
 	s := "Select target disk for installation:\n\n"
-	s += "⚠  WARNING: All data on the selected disk will be DESTROYED!\n\n"
+	s += "WARNING: All data on the selected disk will be DESTROYED!\n\n"
 
 	for i, disk := range p.disks {
 		cursor := " "
@@ -139,8 +139,8 @@ func (p *confirmationPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 }
 
 func (p *confirmationPage) View() string {
-	s := "⚠ FINAL CONFIRMATION ⚠\n\n"
-	s += fmt.Sprintf("You are about to install Linux on the selected disk (%s).\n", mainModel.disk)
+	s := "FINAL CONFIRMATION\n\n"
+	s += fmt.Sprintf("You are about to install Kairos on the selected disk (%s).\n", mainModel.disk)
 	s += "This will PERMANENTLY DELETE all existing data!\n\n"
 	s += "Are you sure you want to continue?\n\n"
 
