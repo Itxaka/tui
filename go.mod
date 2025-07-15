@@ -1,4 +1,4 @@
-module tui_pterm
+module kairos-interactive-installer
 
 go 1.24
 

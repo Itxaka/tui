@@ -1,0 +1,7 @@
+/dist
+
+# editor and IDE paraphernalia
+.idea
+.envrc
+.go-version
+
