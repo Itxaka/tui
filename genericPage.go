@@ -32,29 +32,7 @@ func (g genericQuestionPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			// Now if the input is not empty, we can proceed
 			if g.genericInput.Value() != "" {
 				mainModel.log.Println("Setting value", g.genericInput.Value(), "for section:", g.section.YAMLSection)
-				sections := strings.Split(g.section.YAMLSection, ".")
-				value := g.genericInput.Value()
-
-				// Ensure mainModel.extraFields is initialized
-				if mainModel.extraFields == nil {
-					mainModel.extraFields = make(map[string]interface{})
-				}
-
-				currentMap := mainModel.extraFields
-				for i, key := range sections {
-					if i == len(sections)-1 {
-						currentMap[key] = value
-					} else {
-						if nextMap, ok := currentMap[key].(map[string]interface{}); ok {
-							currentMap = nextMap
-						} else {
-							newMap := make(map[string]interface{})
-							currentMap[key] = newMap
-							currentMap = newMap
-						}
-					}
-				}
-
+				setValueForSectionInMainModel(g.genericInput.Value(), g.section.YAMLSection)
 				mainModel.log.Println(litter.Sdump(mainModel.extraFields))
 				return g, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 			}
@@ -150,33 +128,7 @@ func (g *genericBoolPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			// in both cases we just go back to customization
 			// Save the value to mainModel.extraFields
 			mainModel.log.Println("Setting value", g.options[g.cursor], "for section:", g.section.YAMLSection)
-			sections := strings.Split(g.section.YAMLSection, ".")
-			value := g.options[g.cursor]
-			if value == "Yes" {
-				value = "true"
-			} else {
-				value = "false"
-			}
-			// Ensure mainModel.extraFields is initialized
-			if mainModel.extraFields == nil {
-				mainModel.extraFields = make(map[string]interface{})
-			}
-
-			currentMap := mainModel.extraFields
-			for i, key := range sections {
-				if i == len(sections)-1 {
-					currentMap[key] = value
-				} else {
-					if nextMap, ok := currentMap[key].(map[string]interface{}); ok {
-						currentMap = nextMap
-					} else {
-						newMap := make(map[string]interface{})
-						currentMap[key] = newMap
-						currentMap = newMap
-					}
-				}
-			}
-
+			setValueForSectionInMainModel(g.options[g.cursor], g.section.YAMLSection)
 			mainModel.log.Println(litter.Sdump(mainModel.extraFields))
 			return g, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 		}
@@ -196,4 +148,36 @@ func (g *genericBoolPage) View() string {
 	}
 
 	return s
+}
+
+// setValueForSectionInMainModel sets a value in the mainModel's extraFields map
+// for a given section, which is specified as a dot-separated string.
+// It creates nested maps as necessary to reach the specified section.
+func setValueForSectionInMainModel(value string, section string) {
+	sections := strings.Split(section, ".")
+	// Transform "Yes" to "true" and "No" to "false"
+	if value == "Yes" {
+		value = "true"
+	} else {
+		value = "false"
+	}
+	// Ensure mainModel.extraFields is initialized
+	if mainModel.extraFields == nil {
+		mainModel.extraFields = make(map[string]interface{})
+	}
+
+	currentMap := mainModel.extraFields
+	for i, key := range sections {
+		if i == len(sections)-1 {
+			currentMap[key] = value
+		} else {
+			if nextMap, ok := currentMap[key].(map[string]interface{}); ok {
+				currentMap = nextMap
+			} else {
+				newMap := make(map[string]interface{})
+				currentMap[key] = newMap
+				currentMap = newMap
+			}
+		}
+	}
 }
