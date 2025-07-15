@@ -181,8 +181,9 @@ func (m model) View() string {
 		Bold(true).
 		Foreground(kairosHighlight).
 		Background(kairosBg).
-		Padding(1, 4).
-		Align(lipgloss.Center).AlignHorizontal(lipgloss.Center)
+		Padding(0, 0).
+		Width(mainModel.width - 6). // Set width to match content area
+		Align(lipgloss.Center)
 
 	// Get current page content by ID
 	content := ""
