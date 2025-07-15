@@ -50,16 +50,14 @@ func runCustomizationPlugins() ([]YAMLPrompt, error) {
 func newCustomizationPage() *customizationPage {
 	return &customizationPage{
 		options: []string{
-			"Finish Customization",
 			"User & Password",
 			"SSH Keys",
 		},
 
 		cursor: 0,
 		cursorWithIds: map[int]string{
-			0: "install_process",
-			1: "user_password",
-			2: "ssh_keys",
+			0: "user_password",
+			1: "ssh_keys",
 		},
 	}
 }
@@ -119,6 +117,12 @@ func (p *customizationPage) Init() tea.Cmd {
 			}
 		}
 	}
+
+	// Now add the finish and install options to the bottom of the list
+	p.options = append(p.options, "Finish Customization and start Installation")
+	p.cursorWithIds[len(p.cursorWithIds)] = "install_process"
+
+	mainModel.log.Printf("Customization options loaded: %v", p.cursorWithIds)
 	return nil
 }
 
