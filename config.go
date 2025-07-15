@@ -10,14 +10,18 @@ import (
 // Dynamic fields: stored in ExtraFields
 
 type InstallConfig struct {
-	Install     map[string]any `yaml:"install"`
-	Stages      map[string]any `yaml:"stages"`
-	ExtraFields map[string]any `yaml:",inline"`
+	Install     map[string]any `yaml:"install,omitempty"`
+	Stages      map[string]any `yaml:"stages,omitempty"`
+	ExtraFields map[string]any `yaml:",inline,omitempty"`
 }
 
 // NewInstallConfig creates a new config from model values
 func NewInstallConfig(m model) *InstallConfig {
-	installConfig := InstallConfig{}
+	installConfig := InstallConfig{
+		Install:     map[string]any{},
+		Stages:      map[string]any{},
+		ExtraFields: make(map[string]any),
+	}
 
 	installConfig.Install["device"] = m.disk
 
