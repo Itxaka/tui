@@ -11,19 +11,44 @@ import (
 
 type InstallConfig struct {
 	Install     map[string]any `yaml:"install"`
+	Stages      map[string]any `yaml:"stages"`
 	ExtraFields map[string]any `yaml:",inline"`
 }
 
 // NewInstallConfig creates a new config from model values
 func NewInstallConfig(m model) *InstallConfig {
-	return &InstallConfig{
-		Install: map[string]any{
-			"username": m.username,
-			"password": m.password,
-			"ssh_keys": m.sshKeys,
-		},
-		ExtraFields: make(map[string]any), // can be populated with dynamic fields
+	installConfig := InstallConfig{}
+
+	installConfig.Install["device"] = m.disk
+
+	if m.username != "" && m.password != "" {
+		stage := "initramfs"
+
+		// If we have ssh keys we need to delay the user creation to the network stage so we can get those keys
+		if m.sshKeys != nil && len(m.sshKeys) > 0 {
+			stage = "network"
+		}
+		installConfig.Stages[stage] = []map[string]any{
+			{
+				"name": "Set user and password",
+				"users": map[string]any{
+					"kairos": map[string]any{
+						"passwd":              m.password,
+						"groups":              []string{"admin"},
+						"ssh_authorized_keys": m.sshKeys,
+					},
+				},
+			},
+		}
+	} else {
+		// No users set, we need to skip the user validation
+		installConfig.Install["nousers"] = true
 	}
+
+	// Always set the extra fields
+	installConfig.ExtraFields = m.extraFields
+
+	return &installConfig
 }
 
 // WriteYAML writes the config to a YAML file
