@@ -26,15 +26,17 @@ type installProcessPage struct {
 func newInstallProcessPage() *installProcessPage {
 	return &installProcessPage{
 		progress: 0,
-		step:     "Preparing installation...",
+		step:     InstallDefaultStep,
 		steps: []string{
-			"Preparing installation...",
-			"Partitioning disk...",
-			"Formatting partitions...",
-			"Installing base system...",
-			"Configuring bootloader...",
-			"Finalizing installation...",
-			"Installation complete!",
+			InstallDefaultStep,
+			InstallPartitionStep,
+			InstallBeforeInstallStep,
+			InstallActiveStep,
+			InstallBootloaderStep,
+			InstallRecoveryStep,
+			InstallPassiveStep,
+			InstallAfterInstallStep,
+			InstallCompleteStep,
 		},
 		done:   make(chan bool),
 		output: make(chan string),
@@ -49,11 +51,7 @@ func (p *installProcessPage) Init() tea.Cmd {
 	go func() {
 		defer close(p.done)
 
-		// Build the command with arguments based on user selections
-		diskArg := strings.Split(mainModel.disk, " ")[0] // Extract just the device path
-		cmd := exec.Command("./fake.sh", diskArg, mainModel.username, mainModel.password)
-
-		mainModel.log.Printf("Starting installer with disk=%s, user=%s", diskArg, mainModel.username)
+		cmd := exec.Command("kairos-agent", "manual-install", filepath.Join(os.TempDir(), "kairos-install-config.yaml"))
 
 		// Create pipes for stdout and stderr
 		stdout, err := cmd.StdoutPipe()
@@ -87,18 +85,24 @@ func (p *installProcessPage) Init() tea.Cmd {
 				p.output <- line
 
 				// Parse output to determine current step based on keywords
-				if strings.Contains(line, "Partitioning") {
-					p.output <- "STEP:Partitioning disk..."
-				} else if strings.Contains(line, "Formatting") {
-					p.output <- "STEP:Formatting partitions..."
-				} else if strings.Contains(line, "Installing base system") {
-					p.output <- "STEP:Installing base system..."
-				} else if strings.Contains(line, "Configuring bootloader") {
-					p.output <- "STEP:Configuring bootloader..."
-				} else if strings.Contains(line, "Finalizing") {
-					p.output <- "STEP:Finalizing installation..."
-				} else if strings.Contains(line, "Installation complete") || strings.Contains(line, "Success") {
-					p.output <- "STEP:Installation complete!"
+				// Basically the output of agent doesnt match exactly what we want to show in the UI,
+				// so we map what we found in the agent output to the steps we want to show in the UI.
+				if strings.Contains(line, AgentPartitionLog) {
+					p.output <- StepPrefix + InstallPartitionStep
+				} else if strings.Contains(line, AgentBeforeInstallLog) {
+					p.output <- StepPrefix + InstallBeforeInstallStep
+				} else if strings.Contains(line, AgentActiveLog) {
+					p.output <- StepPrefix + InstallActiveStep
+				} else if strings.Contains(line, AgentBootloaderLog) {
+					p.output <- StepPrefix + InstallBootloaderStep
+				} else if strings.Contains(line, AgentRecoveryLog) {
+					p.output <- StepPrefix + InstallRecoveryStep
+				} else if strings.Contains(line, AgentPassiveLog) {
+					p.output <- StepPrefix + InstallPassiveStep
+				} else if strings.Contains(line, AgentAfterInstallLog) {
+					p.output <- StepPrefix + InstallAfterInstallStep
+				} else if strings.Contains(line, AgentCompleteLog) {
+					p.output <- StepPrefix + InstallCompleteStep
 				}
 			}
 		}()
@@ -106,10 +110,10 @@ func (p *installProcessPage) Init() tea.Cmd {
 		// Wait for the command to complete
 		if err := cmd.Wait(); err != nil {
 			mainModel.log.Printf("Error waiting for installer: %v", err)
-			p.output <- "ERROR:" + err.Error()
+			p.output <- ErrorPrefix + err.Error()
 		} else {
 			mainModel.log.Printf("Installation completed successfully")
-			p.output <- "STEP:Installation complete!"
+			p.output <- StepPrefix + InstallCompleteStep
 		}
 	}()
 
@@ -134,9 +138,9 @@ func (p *installProcessPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			}
 
 			// Process the output
-			if strings.HasPrefix(output, "STEP:") {
+			if strings.HasPrefix(output, StepPrefix) {
 				// This is a step change notification
-				stepName := strings.TrimPrefix(output, "STEP:")
+				stepName := strings.TrimPrefix(output, StepPrefix)
 
 				// Find the index of the step
 				for i, s := range p.steps {
@@ -146,9 +150,9 @@ func (p *installProcessPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 						break
 					}
 				}
-			} else if strings.HasPrefix(output, "ERROR:") {
+			} else if strings.HasPrefix(output, ErrorPrefix) {
 				// Handle error
-				errorMsg := strings.TrimPrefix(output, "ERROR:")
+				errorMsg := strings.TrimPrefix(output, ErrorPrefix)
 				p.step = "Error: " + errorMsg
 				return p, nil
 			}
@@ -191,8 +195,9 @@ func (p *installProcessPage) View() string {
 
 	// Show completed steps
 	s += "Completed steps:\n"
+	tick := lipgloss.NewStyle().Foreground(kairosAccent).Render("✓")
 	for i := 0; i < p.progress; i++ {
-		s += fmt.Sprintf("✓ %s\n", p.steps[i])
+		s += fmt.Sprintf("%s %s\n", tick, p.steps[i])
 	}
 
 	if p.progress < len(p.steps)-1 {
