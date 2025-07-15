@@ -75,9 +75,9 @@ func initialModel() model {
 
 func (m model) Init() tea.Cmd {
 	mainModel.log.Printf("Starting Kairos Interactive Installer")
-	if len(m.pages) > 0 {
-		for _, p := range m.pages {
-			if p.ID() == m.currentPageID {
+	if len(mainModel.pages) > 0 {
+		for _, p := range mainModel.pages {
+			if p.ID() == mainModel.currentPageID {
 				return p.Init()
 			}
 		}
@@ -87,90 +87,92 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// For navigation, access the mainModel so we can modify from anywhere
 	currentIdx := -1
-	for i, p := range m.pages {
-		if p.ID() == m.currentPageID {
+	for i, p := range mainModel.pages {
+		if p.ID() == mainModel.currentPageID {
 			currentIdx = i
 			break
 		}
 	}
 	if currentIdx == -1 {
-		return m, nil
+		return mainModel, nil
 	}
 
 	// Hijack all keys if on install process page
-	if installPage, ok := m.pages[currentIdx].(*installProcessPage); ok {
+	if installPage, ok := mainModel.pages[currentIdx].(*installProcessPage); ok {
 		if installPage.progress < len(installPage.steps)-1 {
 			// Ignore all key events during install
 			if _, isKey := msg.(tea.KeyMsg); isKey {
-				return m, nil
+				return mainModel, nil
 			}
 		}
 		if installPage.progress >= len(installPage.steps)-1 {
 			// After install, any key exits
 			if _, isKey := msg.(tea.KeyMsg); isKey {
-				return m, tea.Quit
+				return mainModel, tea.Quit
 			}
 		}
 	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		return m, nil
+		mainModel.width = msg.Width
+		mainModel.height = msg.Height
+		return mainModel, nil
 
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
-			return m, tea.Quit
+			return mainModel, tea.Quit
 		case "esc":
 			// Go back to previous page if we have navigation history
-			if len(m.navigationStack) > 0 {
+			if len(mainModel.navigationStack) > 0 {
 				// Pop the last page from the stack
-				m.currentPageID = m.navigationStack[len(m.navigationStack)-1]
-				m.navigationStack = m.navigationStack[:len(m.navigationStack)-1]
-				return m, m.pages[currentIdx].Init()
+				mainModel.currentPageID = mainModel.navigationStack[len(mainModel.navigationStack)-1]
+				mainModel.navigationStack = mainModel.navigationStack[:len(mainModel.navigationStack)-1]
+				return mainModel, mainModel.pages[currentIdx].Init()
 			}
 		}
 	}
 
 	// Handle page navigation
-	if currentIdx < len(m.pages) {
-		updatedPage, cmd := m.pages[currentIdx].Update(msg)
-		m.pages[currentIdx] = updatedPage
+	if currentIdx < len(mainModel.pages) {
+		updatedPage, cmd := mainModel.pages[currentIdx].Update(msg)
+		mainModel.pages[currentIdx] = updatedPage
 
 		// Check if we need to navigate to next page
 		if _, ok := msg.(NextPageMsg); ok {
-			if currentIdx < len(m.pages)-1 {
+			if currentIdx < len(mainModel.pages)-1 {
 				// Push current page to navigation stack
-				m.navigationStack = append(m.navigationStack, m.currentPageID)
-				m.currentPageID = m.pages[currentIdx+1].ID()
-				return m, tea.Batch(cmd, m.pages[currentIdx+1].Init())
+				mainModel.navigationStack = append(mainModel.navigationStack, mainModel.currentPageID)
+				mainModel.currentPageID = mainModel.pages[currentIdx+1].ID()
+				return mainModel, tea.Batch(cmd, mainModel.pages[currentIdx+1].Init())
 			}
 		}
 
 		// Check if we need to navigate to a specific page
 		if goToPageMsg, ok := msg.(GoToPageMsg); ok {
 			if goToPageMsg.PageID != "" {
-				for i, p := range m.pages {
+				for i, p := range mainModel.pages {
 					if p.ID() == goToPageMsg.PageID {
-						m.navigationStack = append(m.navigationStack, m.currentPageID)
-						m.currentPageID = goToPageMsg.PageID
-						return m, tea.Batch(cmd, m.pages[i].Init())
+						mainModel.navigationStack = append(mainModel.navigationStack, mainModel.currentPageID)
+						mainModel.currentPageID = goToPageMsg.PageID
+						return mainModel, tea.Batch(cmd, mainModel.pages[i].Init())
 					}
 				}
+				mainModel.log.Printf("model.Update: pageID=%s not found in mainModel.pages", goToPageMsg.PageID)
 			}
 		}
 
-		return m, cmd
+		return mainModel, cmd
 	}
 
-	return m, nil
+	return mainModel, nil
 }
 
 func (m model) View() string {
-	if m.width == 0 || m.height == 0 {
+	if mainModel.width == 0 || mainModel.height == 0 {
 		return "Loading..."
 	}
 
@@ -179,8 +181,8 @@ func (m model) View() string {
 		BorderForeground(kairosBorder).
 		Background(kairosBg).
 		Padding(1).
-		Width(m.width - 4).
-		Height(m.height - 4)
+		Width(mainModel.width - 4).
+		Height(mainModel.height - 4)
 
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -192,15 +194,15 @@ func (m model) View() string {
 	// Get current page content by ID
 	content := ""
 	help := ""
-	for _, p := range m.pages {
-		if p.ID() == m.currentPageID {
+	for _, p := range mainModel.pages {
+		if p.ID() == mainModel.currentPageID {
 			content = p.View()
 			help = p.Help()
 			break
 		}
 	}
 
-	title := titleStyle.Render(m.title)
+	title := titleStyle.Render(mainModel.title)
 
 	helpStyle := lipgloss.NewStyle().
 		Foreground(kairosText).
@@ -208,14 +210,14 @@ func (m model) View() string {
 
 	var fullHelp string
 	currentIdx := -1
-	for i, p := range m.pages {
-		if p.ID() == m.currentPageID {
+	for i, p := range mainModel.pages {
+		if p.ID() == mainModel.currentPageID {
 			currentIdx = i
 			break
 		}
 	}
 	if currentIdx != -1 {
-		if _, ok := m.pages[currentIdx].(*installProcessPage); ok {
+		if _, ok := mainModel.pages[currentIdx].(*installProcessPage); ok {
 			fullHelp = help
 		} else {
 			fullHelp = help + " • ESC: back • q/ctrl+c: quit"
@@ -224,7 +226,7 @@ func (m model) View() string {
 
 	helpText := helpStyle.Render(fullHelp)
 
-	availableHeight := m.height - 8
+	availableHeight := mainModel.height - 8
 	contentHeight := availableHeight - 2
 	contentLines := strings.Split(content, "\n")
 	if len(contentLines) > contentHeight {
@@ -494,8 +496,9 @@ func runCustomizationPlugins() ([]YAMLPrompt, error) {
 }
 
 type customizationPage struct {
-	cursor  int
-	options []string
+	cursor        int
+	options       []string
+	cursorWithIds map[int]string
 }
 
 func (p *customizationPage) Title() string {
@@ -509,16 +512,30 @@ func (p *customizationPage) Help() string {
 func newCustomizationPage() *customizationPage {
 	return &customizationPage{
 		options: []string{
+			"Finish Customization",
 			"User & Password",
 			"SSH Keys",
-			"Finish Customization",
 		},
+
 		cursor: 0,
+		cursorWithIds: map[int]string{
+			0: "install_process",
+			1: "user_password",
+			2: "ssh_keys",
+		},
 	}
 }
 
+func checkPageExists(pageID string, options map[int]string) bool {
+	for _, opt := range options {
+		if strings.Contains(opt, pageID) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *customizationPage) Init() tea.Cmd {
-	// Create the customization plugins pages
 	mainModel.log.Printf("Running customization plugins...")
 	yaML, err := runCustomizationPlugins()
 	mainModel.log.Printf("Customization plugins returned: %s", litter.Sdump(yaML))
@@ -528,15 +545,26 @@ func (p *customizationPage) Init() tea.Cmd {
 		return nil
 	}
 	if len(yaML) > 0 {
-		for _, prompt := range yaML {
+		startIdx := len(p.options)
+		for i, prompt := range yaML {
+			// Check if its already added to the options!
+			if checkPageExists(idFromSection(prompt), p.cursorWithIds) {
+				mainModel.log.Printf("Customization page for %s already exists, skipping", prompt.YAMLSection)
+				continue
+			}
+			optIdx := startIdx + i
 			if prompt.Bool == false {
-				// Add a new option for each YAML section
 				p.options = append(p.options, fmt.Sprintf("Configure %s", prompt.YAMLSection))
-				// Also add the page
-				mainModel.pages = append(mainModel.pages, newGenericQuestionPage(prompt))
+				pageID := idFromSection(prompt)
+				p.cursorWithIds[optIdx] = pageID
+				newPage := newGenericQuestionPage(prompt)
+				mainModel.pages = append(mainModel.pages, newPage)
 			} else {
-				// Add a boolean prompt
 				p.options = append(p.options, fmt.Sprintf("Configure %s", prompt.YAMLSection))
+				pageID := idFromSection(prompt)
+				p.cursorWithIds[optIdx] = pageID
+				newPage := newGenericBoolPage(prompt)
+				mainModel.pages = append(mainModel.pages, newPage)
 			}
 		}
 	}
@@ -556,16 +584,8 @@ func (p *customizationPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 				p.cursor++
 			}
 		case "enter":
-			switch p.cursor {
-			case 0:
-				// User & Password
-				return p, func() tea.Msg { return GoToPageMsg{PageID: "user_password"} }
-			case 1:
-				// SSH Keys
-				return p, func() tea.Msg { return GoToPageMsg{PageID: "ssh_keys"} }
-			case 2:
-				// Finish Customization - go to install process
-				return p, func() tea.Msg { return GoToPageMsg{PageID: "install_process"} }
+			if pageID, ok := p.cursorWithIds[p.cursor]; ok {
+				return p, func() tea.Msg { return GoToPageMsg{PageID: pageID} }
 			}
 		}
 	}
@@ -728,7 +748,7 @@ type sshKeysPage struct {
 
 func newSSHKeysPage() *sshKeysPage {
 	keyInput := textinput.New()
-	keyInput.Placeholder = "github:USERNAME or "
+	keyInput.Placeholder = "github:USERNAME or gitlab:USERNAME"
 	keyInput.Width = 60
 
 	return &sshKeysPage{
@@ -961,7 +981,8 @@ var (
 
 // Main function
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	mainModel = initialModel()
+	p := tea.NewProgram(mainModel, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v", err)
 	}

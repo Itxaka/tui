@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sanity-io/litter"
 	"strings"
 )
@@ -29,38 +31,28 @@ func (g genericQuestionPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			}
 			// Now if the input is not empty, we can proceed
 			if g.genericInput.Value() != "" {
-				// Set the value in the mainModel extraFields
-				// Split the section YAMLSection to use as a key. Each field separated by a dot is a nested field.
-				// for example, if the section is "network.token", we will use "network" as a key and "token" as a subkey.
-				// This allows us to store nested values in the mainModel.extraFields map.
-
+				mainModel.log.Println("Setting value", g.genericInput.Value(), "for section:", g.section.YAMLSection)
 				sections := strings.Split(g.section.YAMLSection, ".")
-				if len(sections) > 1 {
-					// If there are multiple sections, we need to create a nested map structure
-					currentMap := mainModel.extraFields
-					for i, section := range sections {
-						if i == len(sections)-1 {
-							// If it's the last section, set the value
-							currentMap[section] = g.genericInput.Value()
-						} else {
-							// If it's not the last section, ensure the map exists
-							if _, exists := currentMap[section]; !exists {
-								currentMap[section] = make(map[string]interface{})
-							}
-							// Move to the next level in the map
-							if nextMap, ok := currentMap[section].(map[string]interface{}); ok {
-								currentMap = nextMap
-							} else {
-								// If the next level is not a map, we need to create it
-								currentMap[section] = make(map[string]interface{})
-								currentMap = currentMap[section].(map[string]interface{})
-							}
-						}
+				value := g.genericInput.Value()
 
+				// Ensure mainModel.extraFields is initialized
+				if mainModel.extraFields == nil {
+					mainModel.extraFields = make(map[string]interface{})
+				}
+
+				currentMap := mainModel.extraFields
+				for i, key := range sections {
+					if i == len(sections)-1 {
+						currentMap[key] = value
+					} else {
+						if nextMap, ok := currentMap[key].(map[string]interface{}); ok {
+							currentMap = nextMap
+						} else {
+							newMap := make(map[string]interface{})
+							currentMap[key] = newMap
+							currentMap = newMap
+						}
 					}
-				} else {
-					// If there's only one section, just set the value directly
-					mainModel.extraFields[g.section.YAMLSection] = g.genericInput.Value()
 				}
 
 				mainModel.log.Println(litter.Sdump(mainModel.extraFields))
@@ -71,6 +63,8 @@ func (g genericQuestionPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			return g, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 		}
 	}
+
+	g.genericInput, cmd = g.genericInput.Update(msg)
 
 	return g, cmd
 }
@@ -97,7 +91,7 @@ func (g genericQuestionPage) ID() string {
 func idFromSection(section YAMLPrompt) string {
 	// Generate a unique ID based on the section's YAMLSection.
 	// This could be a simple hash or just the section name.
-	return section.YAMLSection
+	return strings.Replace(section.YAMLSection, ".", "_", -1)
 }
 
 // newGenericQuestionPage initializes a new generic question page with a text input model.
@@ -105,11 +99,74 @@ func idFromSection(section YAMLPrompt) string {
 func newGenericQuestionPage(section YAMLPrompt) *genericQuestionPage {
 	genericInput := textinput.New()
 	genericInput.Placeholder = section.PlaceHolder
-	genericInput.Width = 20
+	genericInput.Width = 120
 	genericInput.Focus()
 
 	return &genericQuestionPage{
 		genericInput: genericInput,
 		section:      section,
 	}
+}
+
+type genericBoolPage struct {
+	cursor  int
+	options []string
+	section YAMLPrompt
+}
+
+func newGenericBoolPage(section YAMLPrompt) *genericBoolPage {
+	return &genericBoolPage{
+		options: []string{"Yes", "No"},
+		cursor:  1, // Default to "No"
+		section: section,
+	}
+}
+
+func (g *genericBoolPage) Title() string {
+	return idFromSection(g.section)
+}
+
+func (g *genericBoolPage) Help() string {
+	return genericNavigationHelp
+}
+
+func (g *genericBoolPage) ID() string {
+	return idFromSection(g.section)
+}
+
+func (g *genericBoolPage) Init() tea.Cmd {
+	return nil
+}
+
+func (g *genericBoolPage) Update(msg tea.Msg) (Page, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "up", "k":
+			g.cursor = 0
+		case "down", "j":
+			g.cursor = 1
+		case "enter":
+			// in both cases we just go back to customization
+			// Save the value to mainModel.extraFields
+			mainModel.log.Println("Setting value", g.options[g.cursor], "for section:", g.section.YAMLSection)
+
+			return g, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
+		}
+	}
+	return g, nil
+}
+
+func (g *genericBoolPage) View() string {
+	s := g.section.Prompt + "\n\n"
+
+	for i, option := range g.options {
+		cursor := " "
+		if g.cursor == i {
+			cursor = lipgloss.NewStyle().Foreground(kairosAccent).Render(">")
+		}
+		s += fmt.Sprintf("%s %s\n", cursor, option)
+	}
+
+	return s
 }
