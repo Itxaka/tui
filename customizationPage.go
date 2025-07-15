@@ -8,7 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mudler/go-pluggable"
-	"github.com/sanity-io/litter"
 )
 
 // Customization Page
@@ -91,7 +90,6 @@ func (p *customizationPage) Help() string {
 func (p *customizationPage) Init() tea.Cmd {
 	mainModel.log.Printf("Running customization plugins...")
 	yaML, err := runCustomizationPlugins()
-	mainModel.log.Printf("Customization plugins returned: %s", litter.Sdump(yaML))
 	if err != nil {
 		mainModel.log.Printf("Error running customization plugins: %v", err)
 		fmt.Println("Error running customization plugins:", err)

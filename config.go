@@ -58,6 +58,7 @@ func NewInstallConfig(m model) *InstallConfig {
 
 // WriteYAML writes the config to a YAML file
 func (c *InstallConfig) WriteYAML(path string) error {
+	mainModel.log.Printf("Writing install config to %s", path)
 	f, err := os.Create(path)
 	if err != nil {
 		return err

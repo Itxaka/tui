@@ -7,7 +7,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sanity-io/litter"
 )
 
 // genericQuestionPage represents a page that asks a generic question
@@ -35,7 +34,6 @@ func (g genericQuestionPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			if g.genericInput.Value() != "" {
 				mainModel.log.Println("Setting value", g.genericInput.Value(), "for section:", g.section.YAMLSection)
 				setValueForSectionInMainModel(g.genericInput.Value(), g.section.YAMLSection)
-				mainModel.log.Println(litter.Sdump(mainModel.extraFields))
 				return g, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 			}
 		case "esc":
@@ -132,7 +130,6 @@ func (g *genericBoolPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			// Save the value to mainModel.extraFields
 			mainModel.log.Println("Setting value", g.options[g.cursor], "for section:", g.section.YAMLSection)
 			setValueForSectionInMainModel(g.options[g.cursor], g.section.YAMLSection)
-			mainModel.log.Println(litter.Sdump(mainModel.extraFields))
 			return g, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 		}
 	}

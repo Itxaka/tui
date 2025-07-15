@@ -2,26 +2,44 @@ package main
 
 import (
 	"fmt"
+	"github.com/jaypipes/ghw"
+	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/jaypipes/ghw/pkg/block"
 )
+
+type diskStruct struct {
+	id   int
+	name string
+	size string
+}
 
 // Disk Selection Page
 type diskSelectionPage struct {
-	disks  []string
+	disks  []diskStruct
 	cursor int
 }
 
 func newDiskSelectionPage() *diskSelectionPage {
-	// TODO: Get the disks and maybe filter them somehow?
+	bl, err := block.New(ghw.WithDisableTools(), ghw.WithDisableWarnings())
+	if err != nil {
+		fmt.Printf("Error initializing block device info: %v\n", err)
+		return nil
+	}
+	var disks []diskStruct
+
+	for _, disk := range bl.Disks {
+		if disk.Name == "loop0" || disk.Name == "ram0" || disk.Name == "sr0" || disk.Name == "zram0" || disk.SizeBytes < 1*1024*1024*1024 {
+			continue // Skip loop, ram, sr, zram devices, and skip disks smaller than 1 GiB
+		}
+		mainModel.log.Println("Found disk:", disk.Name, "with size:", disk.SizeBytes, "bytes")
+		disks = append(disks, diskStruct{name: filepath.Join("/dev", disk.Name), size: fmt.Sprintf("%.2f GiB", float64(disk.SizeBytes)/float64(1024*1024*1024)), id: len(disks)})
+	}
+
 	return &diskSelectionPage{
-		disks: []string{
-			"/dev/sda - 500GB SSD",
-			"/dev/sdb - 1TB HDD",
-			"/dev/nvme0n1 - 256GB NVMe",
-			"/dev/sdc - 2TB HDD",
-		},
+		disks:  disks,
 		cursor: 0,
 	}
 }
@@ -45,7 +63,7 @@ func (p *diskSelectionPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 		case "enter":
 			// Store selected disk in mainModel
 			if p.cursor >= 0 && p.cursor < len(p.disks) {
-				mainModel.disk = p.disks[p.cursor]
+				mainModel.disk = p.disks[p.cursor].name
 				mainModel.log.Printf("Selected disk: %s", mainModel.disk)
 			}
 			// Go to confirmation page
@@ -64,7 +82,7 @@ func (p *diskSelectionPage) View() string {
 		if p.cursor == i {
 			cursor = lipgloss.NewStyle().Foreground(kairosAccent).Render(">")
 		}
-		s += fmt.Sprintf("%s %s\n", cursor, disk)
+		s += fmt.Sprintf("%s %s (%s)\n", cursor, disk.name, disk.size)
 	}
 
 	return s

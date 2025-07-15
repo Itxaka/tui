@@ -47,7 +47,13 @@ var mainModel model
 
 // Initialize the application
 func initialModel() model {
-	pages := []Page{
+	// First create the model with the logger in case any page needs to log something
+	mainModel = model{
+		navigationStack: []string{},
+		title:           "Kairos Interactive Installer",
+		log:             newLogger(),
+	}
+	mainModel.pages = []Page{
 		newDiskSelectionPage(),
 		newConfirmationPage(),
 		newInstallOptionsPage(),
@@ -56,13 +62,7 @@ func initialModel() model {
 		newSSHKeysPage(),
 		newInstallProcessPage(),
 	}
-	mainModel = model{
-		pages:           pages,
-		currentPageID:   pages[0].ID(), // Start with first page ID
-		navigationStack: []string{},
-		title:           "Kairos Interactive Installer",
-		log:             newLogger(),
-	}
+	mainModel.currentPageID = mainModel.pages[0].ID() // Start with first page ID
 	return mainModel
 }
 

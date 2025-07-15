@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,6 +42,9 @@ func newInstallProcessPage() *installProcessPage {
 }
 
 func (p *installProcessPage) Init() tea.Cmd {
+	// Save the configuration before starting the installation
+	cfg := NewInstallConfig(mainModel)
+	_ = cfg.WriteYAML(filepath.Join(os.TempDir(), "kairos-install-config.yaml"))
 	// Start the actual installer binary as a background process
 	go func() {
 		defer close(p.done)
