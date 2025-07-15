@@ -36,6 +36,7 @@ type model struct {
 	username        string
 	sshKeys         []string // Store SSH keys
 	password        string
+	extraFields     map[string]any // Dynamic fields for customization
 	log             *log.Logger
 }
 
@@ -477,7 +478,6 @@ func runCustomizationPlugins() ([]YAMLPrompt, error) {
 	Manager.Initialize()
 	var r []YAMLPrompt
 	Manager.Response("agent.interactive-install", func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
-		mainModel.log.Printf("Received response from plugin %s at %s: %s", p.Name, p.Executable, resp.Data)
 		err := json.Unmarshal([]byte(resp.Data), &r)
 		if err != nil {
 			fmt.Println(err)
@@ -526,6 +526,19 @@ func (p *customizationPage) Init() tea.Cmd {
 		mainModel.log.Printf("Error running customization plugins: %v", err)
 		fmt.Println("Error running customization plugins:", err)
 		return nil
+	}
+	if len(yaML) > 0 {
+		for _, prompt := range yaML {
+			if prompt.Bool == false {
+				// Add a new option for each YAML section
+				p.options = append(p.options, fmt.Sprintf("Configure %s", prompt.YAMLSection))
+				// Also add the page
+				mainModel.pages = append(mainModel.pages, newGenericQuestionPage(prompt))
+			} else {
+				// Add a boolean prompt
+				p.options = append(p.options, fmt.Sprintf("Configure %s", prompt.YAMLSection))
+			}
+		}
 	}
 	return nil
 }
