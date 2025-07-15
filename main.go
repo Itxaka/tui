@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -8,8 +9,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mudler/go-pluggable"
 	"github.com/sanity-io/litter"
+	"io"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -878,6 +881,8 @@ type installProcessPage struct {
 	progress int
 	step     string
 	steps    []string
+	done     chan bool   // Channel to signal when installation is complete
+	output   chan string // Channel to receive output from the installer
 }
 
 func newInstallProcessPage() *installProcessPage {
@@ -890,36 +895,140 @@ func newInstallProcessPage() *installProcessPage {
 			"Formatting partitions...",
 			"Installing base system...",
 			"Configuring bootloader...",
-			"Installing packages...",
-			"Configuring user account...",
-			"Setting up SSH keys...",
 			"Finalizing installation...",
 			"Installation complete!",
 		},
+		done:   make(chan bool),
+		output: make(chan string),
 	}
 }
 
 func (p *installProcessPage) Init() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return "tick"
-	})
+	// Start the actual installer binary as a background process
+	go func() {
+		defer close(p.done)
+
+		// Build the command with arguments based on user selections
+		diskArg := strings.Split(mainModel.disk, " ")[0] // Extract just the device path
+		cmd := exec.Command("./fake.sh", diskArg, mainModel.username, mainModel.password)
+
+		mainModel.log.Printf("Starting installer with disk=%s, user=%s", diskArg, mainModel.username)
+
+		// Create pipes for stdout and stderr
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			mainModel.log.Printf("Error creating stdout pipe: %v", err)
+			return
+		}
+
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			mainModel.log.Printf("Error creating stderr pipe: %v", err)
+			return
+		}
+
+		// Start the command
+		if err := cmd.Start(); err != nil {
+			mainModel.log.Printf("Error starting installer: %v", err)
+			return
+		}
+
+		// Create a scanner to read stdout line by line
+		scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+
+		// Read output and send it to the channel
+		go func() {
+			for scanner.Scan() {
+				line := scanner.Text()
+				mainModel.log.Printf("Installer output: %s", line)
+
+				// Send the line to the output channel
+				p.output <- line
+
+				// Parse output to determine current step based on keywords
+				if strings.Contains(line, "Partitioning") {
+					p.output <- "STEP:Partitioning disk..."
+				} else if strings.Contains(line, "Formatting") {
+					p.output <- "STEP:Formatting partitions..."
+				} else if strings.Contains(line, "Installing base system") {
+					p.output <- "STEP:Installing base system..."
+				} else if strings.Contains(line, "Configuring bootloader") {
+					p.output <- "STEP:Configuring bootloader..."
+				} else if strings.Contains(line, "Finalizing") {
+					p.output <- "STEP:Finalizing installation..."
+				} else if strings.Contains(line, "Installation complete") || strings.Contains(line, "Success") {
+					p.output <- "STEP:Installation complete!"
+				}
+			}
+		}()
+
+		// Wait for the command to complete
+		if err := cmd.Wait(); err != nil {
+			mainModel.log.Printf("Error waiting for installer: %v", err)
+			p.output <- "ERROR:" + err.Error()
+		} else {
+			mainModel.log.Printf("Installation completed successfully")
+			p.output <- "STEP:Installation complete!"
+		}
+	}()
+
+	// Return a command that will check for output from the installer
+	return func() tea.Msg {
+		return CheckInstallerMsg{}
+	}
 }
 
+// CheckInstallerMsg Message type to check for installer output
+type CheckInstallerMsg struct{}
+
 func (p *installProcessPage) Update(msg tea.Msg) (Page, tea.Cmd) {
-	// TODO: Make some magic here and call the binary installer?
-	// 2 ways fo dealing with this, either just stream the log output
-	// Or read the output and update the progress bar accordingly depending ont he messages
-	// we get
-	switch msg := msg.(type) {
-	case string:
-		if msg == "tick" && p.progress < len(p.steps)-1 {
-			p.progress++
-			p.step = p.steps[p.progress]
-			return p, tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
-				return "tick"
+	switch msg.(type) {
+	case CheckInstallerMsg:
+		// Check for new output from the installer
+		select {
+		case output, ok := <-p.output:
+			if !ok {
+				// Channel closed, installer is done
+				return p, nil
+			}
+
+			// Process the output
+			if strings.HasPrefix(output, "STEP:") {
+				// This is a step change notification
+				stepName := strings.TrimPrefix(output, "STEP:")
+
+				// Find the index of the step
+				for i, s := range p.steps {
+					if s == stepName {
+						p.progress = i
+						p.step = stepName
+						break
+					}
+				}
+			} else if strings.HasPrefix(output, "ERROR:") {
+				// Handle error
+				errorMsg := strings.TrimPrefix(output, "ERROR:")
+				p.step = "Error: " + errorMsg
+				return p, nil
+			}
+
+			// Continue checking for output
+			return p, func() tea.Msg { return CheckInstallerMsg{} }
+
+		case <-p.done:
+			// Installer is finished
+			p.progress = len(p.steps) - 1
+			p.step = p.steps[len(p.steps)-1]
+			return p, nil
+
+		default:
+			// No new output yet, check again after a short delay
+			return p, tea.Tick(time.Millisecond*100, func(_ time.Time) tea.Msg {
+				return CheckInstallerMsg{}
 			})
 		}
 	}
+
 	return p, nil
 }
 
