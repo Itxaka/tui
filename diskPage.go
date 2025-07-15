@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/jaypipes/ghw"
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jaypipes/ghw/pkg/block"
+	"github.com/jaypipes/ghw/pkg/option"
 )
 
 type diskStruct struct {
@@ -23,7 +23,7 @@ type diskSelectionPage struct {
 }
 
 func newDiskSelectionPage() *diskSelectionPage {
-	bl, err := block.New(ghw.WithDisableTools(), ghw.WithDisableWarnings())
+	bl, err := block.New(option.WithDisableTools(), option.WithNullAlerter())
 	if err != nil {
 		fmt.Printf("Error initializing block device info: %v\n", err)
 		return nil
