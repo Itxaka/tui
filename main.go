@@ -21,13 +21,14 @@ type Page interface {
 	View() string
 	Title() string
 	Help() string
+	ID() string // Unique identifier for the page
 }
 
 // Main application model
 type model struct {
 	pages           []Page
-	currentPage     int
-	navigationStack []int // Stack to track navigation history
+	currentPageID   string   // Track current page by ID
+	navigationStack []string // Stack to track navigation history by ID
 	width           int
 	height          int
 	title           string
@@ -52,13 +53,6 @@ const genericNavigationHelp = "↑/k: up • ↓/j: down • enter: select"
 
 // Initialize the application
 func initialModel() model {
-	mainModel = model{
-		currentPage:     0,
-		navigationStack: []int{}, // Initialize empty stack
-		title:           "Kairos Interactive Installer",
-		log:             newLogger(),
-	}
-	// Create installation workflow pages
 	pages := []Page{
 		newDiskSelectionPage(),
 		newConfirmationPage(),
@@ -68,23 +62,43 @@ func initialModel() model {
 		newSSHKeysPage(),
 		newInstallProcessPage(),
 	}
-
-	mainModel.pages = pages
+	mainModel = model{
+		pages:           pages,
+		currentPageID:   pages[0].ID(), // Start with first page ID
+		navigationStack: []string{},
+		title:           "Kairos Interactive Installer",
+		log:             newLogger(),
+	}
 	return mainModel
 }
 
 func (m model) Init() tea.Cmd {
 	mainModel.log.Printf("Starting Kairos Interactive Installer")
 	if len(m.pages) > 0 {
-		return m.pages[m.currentPage].Init()
+		for _, p := range m.pages {
+			if p.ID() == m.currentPageID {
+				return p.Init()
+			}
+		}
 	}
 
 	return nil
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	currentIdx := -1
+	for i, p := range m.pages {
+		if p.ID() == m.currentPageID {
+			currentIdx = i
+			break
+		}
+	}
+	if currentIdx == -1 {
+		return m, nil
+	}
+
 	// Hijack all keys if on install process page
-	if installPage, ok := m.pages[m.currentPage].(*installProcessPage); ok {
+	if installPage, ok := m.pages[currentIdx].(*installProcessPage); ok {
 		if installPage.progress < len(installPage.steps)-1 {
 			// Ignore all key events during install
 			if _, isKey := msg.(tea.KeyMsg); isKey {
@@ -113,35 +127,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Go back to previous page if we have navigation history
 			if len(m.navigationStack) > 0 {
 				// Pop the last page from the stack
-				m.currentPage = m.navigationStack[len(m.navigationStack)-1]
+				m.currentPageID = m.navigationStack[len(m.navigationStack)-1]
 				m.navigationStack = m.navigationStack[:len(m.navigationStack)-1]
-				return m, m.pages[m.currentPage].Init()
+				return m, m.pages[currentIdx].Init()
 			}
 		}
 	}
 
 	// Handle page navigation
-	if m.currentPage < len(m.pages) {
-		updatedPage, cmd := m.pages[m.currentPage].Update(msg)
-		m.pages[m.currentPage] = updatedPage
+	if currentIdx < len(m.pages) {
+		updatedPage, cmd := m.pages[currentIdx].Update(msg)
+		m.pages[currentIdx] = updatedPage
 
 		// Check if we need to navigate to next page
 		if _, ok := msg.(NextPageMsg); ok {
-			if m.currentPage < len(m.pages)-1 {
+			if currentIdx < len(m.pages)-1 {
 				// Push current page to navigation stack
-				m.navigationStack = append(m.navigationStack, m.currentPage)
-				m.currentPage++
-				return m, tea.Batch(cmd, m.pages[m.currentPage].Init())
+				m.navigationStack = append(m.navigationStack, m.currentPageID)
+				m.currentPageID = m.pages[currentIdx+1].ID()
+				return m, tea.Batch(cmd, m.pages[currentIdx+1].Init())
 			}
 		}
 
 		// Check if we need to navigate to a specific page
 		if goToPageMsg, ok := msg.(GoToPageMsg); ok {
-			if goToPageMsg.PageIndex >= 0 && goToPageMsg.PageIndex < len(m.pages) {
-				// Push current page to navigation stack
-				m.navigationStack = append(m.navigationStack, m.currentPage)
-				m.currentPage = goToPageMsg.PageIndex
-				return m, tea.Batch(cmd, m.pages[m.currentPage].Init())
+			if goToPageMsg.PageID != "" {
+				for i, p := range m.pages {
+					if p.ID() == goToPageMsg.PageID {
+						m.navigationStack = append(m.navigationStack, m.currentPageID)
+						m.currentPageID = goToPageMsg.PageID
+						return m, tea.Batch(cmd, m.pages[i].Init())
+					}
+				}
 			}
 		}
 
@@ -156,7 +173,6 @@ func (m model) View() string {
 		return "Loading..."
 	}
 
-	// Kairos.io themed border style
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(kairosBorder).
@@ -165,7 +181,6 @@ func (m model) View() string {
 		Width(m.width - 4).
 		Height(m.height - 4)
 
-	// Kairos.io themed title style
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(kairosHighlight).
@@ -173,44 +188,49 @@ func (m model) View() string {
 		Padding(1, 4).
 		Align(lipgloss.Center)
 
-	// Get current page content
+	// Get current page content by ID
 	content := ""
 	help := ""
-	if m.currentPage < len(m.pages) {
-		content = m.pages[m.currentPage].View()
-		help = m.pages[m.currentPage].Help()
+	for _, p := range m.pages {
+		if p.ID() == m.currentPageID {
+			content = p.View()
+			help = p.Help()
+			break
+		}
 	}
 
-	// Create the bordered content
 	title := titleStyle.Render(m.title)
 
-	// Add help text at the bottom
 	helpStyle := lipgloss.NewStyle().
 		Foreground(kairosText).
 		Italic(true)
 
-	// If install process, show minimal help
 	var fullHelp string
-	if _, ok := m.pages[m.currentPage].(*installProcessPage); ok {
-		fullHelp = help
-	} else {
-		fullHelp = help + " • ESC: back • q/ctrl+c: quit"
+	currentIdx := -1
+	for i, p := range m.pages {
+		if p.ID() == m.currentPageID {
+			currentIdx = i
+			break
+		}
+	}
+	if currentIdx != -1 {
+		if _, ok := m.pages[currentIdx].(*installProcessPage); ok {
+			fullHelp = help
+		} else {
+			fullHelp = help + " • ESC: back • q/ctrl+c: quit"
+		}
 	}
 
 	helpText := helpStyle.Render(fullHelp)
 
-	// Calculate available space for content
-	availableHeight := m.height - 8 // Account for border, padding, title, and help
+	availableHeight := m.height - 8
 	contentHeight := availableHeight - 2
-
-	// Ensure content fits within available space
 	contentLines := strings.Split(content, "\n")
 	if len(contentLines) > contentHeight {
 		contentLines = contentLines[:contentHeight]
 		content = strings.Join(contentLines, "\n")
 	}
 
-	// Combine title, content, and help
 	pageContent := fmt.Sprintf("%s\n\n%s\n\n%s", title, content, helpText)
 
 	return borderStyle.Render(pageContent)
@@ -220,8 +240,9 @@ func (m model) View() string {
 type NextPageMsg struct{}
 
 // GoToPageMsg is a custom message type for navigating to a specific page
+// Updated to use PageID instead of PageIndex
 type GoToPageMsg struct {
-	PageIndex int
+	PageID string
 }
 
 // Disk Selection Page
@@ -266,7 +287,7 @@ func (p *diskSelectionPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 				mainModel.log.Printf("Selected disk: %s", mainModel.disk)
 			}
 			// Go to confirmation page
-			return p, func() tea.Msg { return GoToPageMsg{PageIndex: 1} }
+			return p, func() tea.Msg { return GoToPageMsg{PageID: "confirmation"} }
 		}
 	}
 	return p, nil
@@ -294,6 +315,8 @@ func (p *diskSelectionPage) Title() string {
 func (p *diskSelectionPage) Help() string {
 	return genericNavigationHelp
 }
+
+func (p *diskSelectionPage) ID() string { return "disk_selection" }
 
 // Confirmation Page
 type confirmationPage struct {
@@ -323,12 +346,12 @@ func (p *confirmationPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 		case "enter":
 			if p.cursor == 0 {
 				// Yes - go to install options
-				return p, func() tea.Msg { return GoToPageMsg{PageIndex: 2} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "install_options"} }
 			} else {
 				// No - clear selected disk and go back to disk selection
 				mainModel.disk = ""
 				mainModel.log.Printf("Installation cancelled, going back to disk selection")
-				return p, func() tea.Msg { return GoToPageMsg{PageIndex: 0} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
 			}
 		}
 	}
@@ -359,6 +382,8 @@ func (p *confirmationPage) Title() string {
 func (p *confirmationPage) Help() string {
 	return genericNavigationHelp
 }
+
+func (p *confirmationPage) ID() string { return "confirmation" }
 
 // Install Options Page
 type installOptionsPage struct {
@@ -395,10 +420,10 @@ func (p *installOptionsPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 		case "enter":
 			if p.cursor == 0 {
 				// Start Install - go to install process
-				return p, func() tea.Msg { return GoToPageMsg{PageIndex: 6} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "install_process"} }
 			} else {
 				// Customize Further - go to customization page
-				return p, func() tea.Msg { return GoToPageMsg{PageIndex: 3} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 			}
 		}
 	}
@@ -427,6 +452,8 @@ func (p *installOptionsPage) Title() string {
 func (p *installOptionsPage) Help() string {
 	return genericNavigationHelp
 }
+
+func (p *installOptionsPage) ID() string { return "install_options" }
 
 // Customization Page
 
@@ -519,13 +546,13 @@ func (p *customizationPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			switch p.cursor {
 			case 0:
 				// User & Password
-				return p, func() tea.Msg { return GoToPageMsg{PageIndex: 4} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "user_password"} }
 			case 1:
 				// SSH Keys
-				return p, func() tea.Msg { return GoToPageMsg{PageIndex: 5} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "ssh_keys"} }
 			case 2:
 				// Finish Customization - go to install process
-				return p, func() tea.Msg { return GoToPageMsg{PageIndex: 6} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "install_process"} }
 			}
 		}
 	}
@@ -574,6 +601,8 @@ func (p *customizationPage) isSSHConfigured() bool {
 	}
 	return false
 }
+
+func (p *customizationPage) ID() string { return "customization" }
 
 // User Password Page
 type userPasswordPage struct {
@@ -631,8 +660,11 @@ func (p *userPasswordPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 				p.password = p.passwordInput.Value()
 				mainModel.password = p.password
 				// Save and go back to customization
-				return p, func() tea.Msg { return GoToPageMsg{PageIndex: 3} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 			}
+		case "esc":
+			// Go back to customization page
+			return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 		}
 	}
 
@@ -670,6 +702,8 @@ func (p *userPasswordPage) Title() string {
 func (p *userPasswordPage) Help() string {
 	return "tab: switch fields • enter: save and continue"
 }
+
+func (p *userPasswordPage) ID() string { return "user_password" }
 
 // SSH Keys Page
 type sshKeysPage struct {
@@ -727,6 +761,9 @@ func (p *sshKeysPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 					p.keyInput.Focus()
 					return p, textinput.Blink
 				}
+			case "esc":
+				// Go back to customization page
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 			}
 		} else { // Add key input mode
 			switch msg.String() {
@@ -734,7 +771,8 @@ func (p *sshKeysPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 				p.mode = 0
 				p.keyInput.Blur()
 				p.keyInput.SetValue("")
-				return p, nil
+				// Go back to customization page
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 			case "enter":
 				if p.keyInput.Value() != "" {
 					p.sshKeys = append(p.sshKeys, p.keyInput.Value())
@@ -743,7 +781,8 @@ func (p *sshKeysPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 					p.keyInput.Blur()
 					p.keyInput.SetValue("")
 					p.cursor = len(p.sshKeys) // Point to "Add new key" option
-					return p, nil
+					// Go back to customization page
+					return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 				}
 			}
 			p.keyInput, cmd = p.keyInput.Update(msg)
@@ -799,6 +838,8 @@ func (p *sshKeysPage) Help() string {
 	}
 	return "Type SSH key • enter: add • esc: cancel"
 }
+
+func (p *sshKeysPage) ID() string { return "ssh_keys" }
 
 // Install Process Page
 type installProcessPage struct {
@@ -892,6 +933,8 @@ func (p *installProcessPage) Help() string {
 	}
 	return "Installation in progress - please wait..."
 }
+
+func (p *installProcessPage) ID() string { return "install_process" }
 
 var (
 	// Updated Kairos.io color palette
