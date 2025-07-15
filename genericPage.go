@@ -150,7 +150,34 @@ func (g *genericBoolPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			// in both cases we just go back to customization
 			// Save the value to mainModel.extraFields
 			mainModel.log.Println("Setting value", g.options[g.cursor], "for section:", g.section.YAMLSection)
+			sections := strings.Split(g.section.YAMLSection, ".")
+			value := g.options[g.cursor]
+			if value == "Yes" {
+				value = "true"
+			} else {
+				value = "false"
+			}
+			// Ensure mainModel.extraFields is initialized
+			if mainModel.extraFields == nil {
+				mainModel.extraFields = make(map[string]interface{})
+			}
 
+			currentMap := mainModel.extraFields
+			for i, key := range sections {
+				if i == len(sections)-1 {
+					currentMap[key] = value
+				} else {
+					if nextMap, ok := currentMap[key].(map[string]interface{}); ok {
+						currentMap = nextMap
+					} else {
+						newMap := make(map[string]interface{})
+						currentMap[key] = newMap
+						currentMap = newMap
+					}
+				}
+			}
+
+			mainModel.log.Println(litter.Sdump(mainModel.extraFields))
 			return g, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 		}
 	}
