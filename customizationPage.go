@@ -119,8 +119,10 @@ func (p *customizationPage) Init() tea.Cmd {
 	}
 
 	// Now add the finish and install options to the bottom of the list
-	p.options = append(p.options, "Finish Customization and start Installation")
-	p.cursorWithIds[len(p.cursorWithIds)] = "install_process"
+	if !checkPageExists("summary", p.cursorWithIds) {
+		p.options = append(p.options, "Finish Customization and start Installation")
+		p.cursorWithIds[len(p.cursorWithIds)] = "summary"
+	}
 
 	mainModel.log.Printf("Customization options loaded: %v", p.cursorWithIds)
 	return nil

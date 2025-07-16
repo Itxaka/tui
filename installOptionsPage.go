@@ -42,7 +42,7 @@ func (p *installOptionsPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 		case "enter":
 			if p.cursor == 0 {
 				// Start Install - go to install process
-				return p, func() tea.Msg { return GoToPageMsg{PageID: "install_process"} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: "summary"} }
 			} else {
 				// Customize Further - go to customization page
 				return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }

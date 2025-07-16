@@ -67,7 +67,7 @@ func (p *diskSelectionPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 				mainModel.log.Printf("Selected disk: %s", mainModel.disk)
 			}
 			// Go to confirmation page
-			return p, func() tea.Msg { return GoToPageMsg{PageID: "confirmation"} }
+			return p, func() tea.Msg { return GoToPageMsg{PageID: "install_options"} }
 		}
 	}
 	return p, nil
@@ -97,70 +97,3 @@ func (p *diskSelectionPage) Help() string {
 }
 
 func (p *diskSelectionPage) ID() string { return "disk_selection" }
-
-// Confirmation Page
-type confirmationPage struct {
-	cursor  int
-	options []string
-}
-
-func newConfirmationPage() *confirmationPage {
-	return &confirmationPage{
-		options: []string{"Yes, continue", "No, go back"},
-		cursor:  1, // Default to "No"
-	}
-}
-
-func (p *confirmationPage) Init() tea.Cmd {
-	return nil
-}
-
-func (p *confirmationPage) Update(msg tea.Msg) (Page, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "up", "k":
-			p.cursor = 0
-		case "down", "j":
-			p.cursor = 1
-		case "enter":
-			if p.cursor == 0 {
-				// Yes - go to install options
-				return p, func() tea.Msg { return GoToPageMsg{PageID: "install_options"} }
-			} else {
-				// No - clear selected disk and go back to disk selection
-				mainModel.disk = ""
-				mainModel.log.Printf("Installation cancelled, going back to disk selection")
-				return p, func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
-			}
-		}
-	}
-	return p, nil
-}
-
-func (p *confirmationPage) View() string {
-	s := "FINAL CONFIRMATION\n\n"
-	s += fmt.Sprintf("You are about to install Kairos on the selected disk (%s).\n", mainModel.disk)
-	s += "This will PERMANENTLY DELETE all existing data!\n\n"
-	s += "Are you sure you want to continue?\n\n"
-
-	for i, option := range p.options {
-		cursor := " "
-		if p.cursor == i {
-			cursor = lipgloss.NewStyle().Foreground(kairosAccent).Render(">")
-		}
-		s += fmt.Sprintf("%s %s\n", cursor, option)
-	}
-
-	return s
-}
-
-func (p *confirmationPage) Title() string {
-	return "Confirmation"
-}
-
-func (p *confirmationPage) Help() string {
-	return genericNavigationHelp
-}
-
-func (p *confirmationPage) ID() string { return "confirmation" }

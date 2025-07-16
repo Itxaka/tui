@@ -57,11 +57,11 @@ func initialModel() model {
 	}
 	mainModel.pages = []Page{
 		newDiskSelectionPage(),
-		newConfirmationPage(),
 		newInstallOptionsPage(),
 		newCustomizationPage(),
 		newUserPasswordPage(),
 		newSSHKeysPage(),
+		newSummaryPage(),
 		newInstallProcessPage(),
 	}
 	mainModel.currentPageID = mainModel.pages[0].ID() // Start with first page ID
