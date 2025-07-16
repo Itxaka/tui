@@ -41,6 +41,8 @@ type model struct {
 	password        string
 	extraFields     map[string]any // Dynamic fields for customization
 	log             *log.Logger
+
+	showAbortConfirm bool // Show abort confirmation popup
 }
 
 var mainModel model
@@ -94,6 +96,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Hijack all keys if on install process page
 	if installPage, ok := mainModel.pages[currentIdx].(*installProcessPage); ok {
+		if mainModel.showAbortConfirm {
+			// Allow CheckInstallerMsg to update progress even when popup is open
+			if _, isCheck := msg.(CheckInstallerMsg); isCheck {
+				updatedPage, cmd := installPage.Update(msg)
+				mainModel.pages[currentIdx] = updatedPage
+				return mainModel, cmd
+			}
+			// Only handle y/n/esc for popup, block other keys
+			if keyMsg, isKey := msg.(tea.KeyMsg); isKey {
+				switch keyMsg.String() {
+				case "y", "Y":
+					installPage.Abort()
+					mainModel.showAbortConfirm = false
+					return mainModel, tea.Quit
+				case "n", "N", "esc":
+					mainModel.showAbortConfirm = false
+					return mainModel, nil
+				}
+			}
+			// Block all other input
+			return mainModel, nil
+		}
+		if keyMsg, isKey := msg.(tea.KeyMsg); isKey {
+			if keyMsg.Type == tea.KeyCtrlC || keyMsg.String() == "ctrl+c" {
+				mainModel.showAbortConfirm = true
+				return mainModel, nil
+			}
+		}
 		if installPage.progress < len(installPage.steps)-1 {
 			// Ignore all key events during install
 			if _, isKey := msg.(tea.KeyMsg); isKey {
@@ -229,6 +259,19 @@ func (m model) View() string {
 	}
 
 	pageContent := fmt.Sprintf("%s\n\n%s\n\n%s", title, content, helpText)
+
+	if mainModel.showAbortConfirm {
+		popupStyle := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(kairosAccent).
+			Background(kairosBg).
+			Padding(1, 2).
+			Align(lipgloss.Center)
+		popupMsg := "Are you sure you want to abort the installation? (y/n)"
+		popup := popupStyle.Render(popupMsg)
+		// Overlay the popup in the center
+		return fmt.Sprintf("%s\n\n%s", borderStyle.Render(pageContent), lipgloss.Place(mainModel.width, mainModel.height, lipgloss.Center, lipgloss.Center, popup))
+	}
 
 	return borderStyle.Render(pageContent)
 }

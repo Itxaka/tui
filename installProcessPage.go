@@ -21,6 +21,7 @@ type installProcessPage struct {
 	steps    []string
 	done     chan bool   // Channel to signal when installation is complete
 	output   chan string // Channel to receive output from the installer
+	cmd      *exec.Cmd   // Reference to the running installer command
 }
 
 func newInstallProcessPage() *installProcessPage {
@@ -52,6 +53,7 @@ func (p *installProcessPage) Init() tea.Cmd {
 		defer close(p.done)
 
 		cmd := exec.Command("kairos-agent", "manual-install", filepath.Join(os.TempDir(), "kairos-install-config.yaml"))
+		p.cmd = cmd // Store reference to cmd
 
 		// Create pipes for stdout and stderr
 		stdout, err := cmd.StdoutPipe()
@@ -215,7 +217,27 @@ func (p *installProcessPage) Help() string {
 	if p.progress >= len(p.steps)-1 {
 		return "Press any key to exit"
 	}
-	return "Installation in progress - please wait..."
+	return "Installation in progress - Use ctrl+c to abort"
 }
 
 func (p *installProcessPage) ID() string { return "install_process" }
+
+// Abort aborts the running installer process and cleans up
+func (p *installProcessPage) Abort() {
+	if p.cmd != nil && p.cmd.Process != nil {
+		_ = p.cmd.Process.Kill()
+		mainModel.log.Printf("Installer process aborted by user")
+	}
+	// Close output channel if not already closed
+	select {
+	case <-p.done:
+		// already closed
+	default:
+		close(p.done)
+	}
+	// Optionally, send a message to output channel
+	select {
+	case p.output <- ErrorPrefix + "Installation aborted by user":
+	default:
+	}
+}
