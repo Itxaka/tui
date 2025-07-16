@@ -16,6 +16,12 @@ func main() {
 		fmt.Println(version)
 		os.Exit(0)
 	}
+
+	// Check for root privileges
+	if os.Geteuid() != 0 {
+		fmt.Println("This program must be run as root. Please use 'sudo' or run as root user.")
+		os.Exit(1)
+	}
 	mainModel = initialModel()
 	p := tea.NewProgram(mainModel, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {

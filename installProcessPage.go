@@ -194,15 +194,15 @@ func (p *installProcessPage) View() string {
 
 	// Show completed steps
 	s += "Completed steps:\n"
-	tick := lipgloss.NewStyle().Foreground(kairosAccent).Render("✓")
+	tick := lipgloss.NewStyle().Foreground(kairosAccent).Render(checkMark)
 	for i := 0; i < p.progress; i++ {
 		s += fmt.Sprintf("%s %s\n", tick, p.steps[i])
 	}
 
 	if p.progress < len(p.steps)-1 {
-		s += "\n⚠️  Do not power off the system during installation!"
+		s += "\n[!]  Do not power off the system during installation!"
 	} else {
-		s += "\n🎉 Installation completed successfully!"
+		s += "\nInstallation completed successfully!"
 		s += "\nYou can now reboot your system."
 	}
 

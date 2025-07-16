@@ -162,13 +162,13 @@ func (p *customizationPage) View() string {
 		if option == "User & Password" {
 			// User & Password
 			if p.isUserConfigured() {
-				tick = lipgloss.NewStyle().Foreground(kairosAccent).Render("✓")
+				tick = lipgloss.NewStyle().Foreground(kairosAccent).Render(checkMark)
 			}
 		}
 		if option == "SSH Keys" {
 			// SSH Keys
 			if p.isSSHConfigured() {
-				tick = lipgloss.NewStyle().Foreground(kairosAccent).Render("✓")
+				tick = lipgloss.NewStyle().Foreground(kairosAccent).Render(checkMark)
 			}
 		}
 		s += fmt.Sprintf("%s %s %s\n", cursor, option, tick)
