@@ -62,7 +62,7 @@ func (p *summaryPage) Title() string {
 }
 
 func (p *summaryPage) Help() string {
-	return genericNavigationHelp
+	return "Press enter to start the installation process.\n" + "Press esc to go back to the previous page.\n"
 }
 
 func (p *summaryPage) ID() string { return "summary" }
