@@ -58,7 +58,7 @@ func (p *summaryPage) View() string {
 }
 
 func (p *summaryPage) Title() string {
-	return "Summary"
+	return "Installation summary"
 }
 
 func (p *summaryPage) Help() string {
