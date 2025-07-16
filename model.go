@@ -52,7 +52,7 @@ func initialModel() model {
 	// First create the model with the logger in case any page needs to log something
 	mainModel = model{
 		navigationStack: []string{},
-		title:           "Kairos Interactive Installer",
+		title:           DefaultTitle(),
 		log:             newLogger(),
 	}
 	mainModel.pages = []Page{
