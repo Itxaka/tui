@@ -81,9 +81,6 @@ func (p *installProcessPage) Init() tea.Cmd {
 				line := scanner.Text()
 				mainModel.log.Printf("Installer output: %s", line)
 
-				// Send the line to the output channel
-				p.output <- line
-
 				// Parse output to determine current step based on keywords
 				// Basically the output of agent doesnt match exactly what we want to show in the UI,
 				// so we map what we found in the agent output to the steps we want to show in the UI.
@@ -99,7 +96,7 @@ func (p *installProcessPage) Init() tea.Cmd {
 					p.output <- StepPrefix + InstallRecoveryStep
 				} else if strings.Contains(line, AgentPassiveLog) {
 					p.output <- StepPrefix + InstallPassiveStep
-				} else if strings.Contains(line, AgentAfterInstallLog) {
+				} else if strings.Contains(line, AgentAfterInstallLog) && !strings.Contains(line, "chroot") {
 					p.output <- StepPrefix + InstallAfterInstallStep
 				} else if strings.Contains(line, AgentCompleteLog) {
 					p.output <- StepPrefix + InstallCompleteStep
